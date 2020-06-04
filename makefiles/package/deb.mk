@@ -19,7 +19,7 @@ _THEOS_DEB_HAS_DPKG_DEB := $(call __executable,$(_THEOS_PLATFORM_DPKG_DEB))
 
 ifneq ($(_THEOS_DEB_HAS_DPKG_DEB),$(_THEOS_TRUE))
 internal-package-check::
-	@$(PRINT_FORMAT_ERROR) "$(MAKE) package requires $(_THEOS_PLATFORM_DPKG_DEB)." >&2; exit 1
+	$(ERROR_BEGIN)"$(MAKE) package requires $(_THEOS_PLATFORM_DPKG_DEB)."$(ERROR_END)
 endif
 
 ifeq ($(_THEOS_DEB_CAN_PACKAGE),$(_THEOS_TRUE)) # Control file found (or layout directory found.)
@@ -33,14 +33,22 @@ ifeq ($(_THEOS_HAS_STAGING_LAYOUT),1) # If we have a layout directory, copy layo
 	$(ECHO_NOTHING)[ -d "$(THEOS_LAYOUT_DIR)/DEBIAN" ] && rsync -a "$(THEOS_LAYOUT_DIR)/DEBIAN/" "$(THEOS_STAGING_DIR)/DEBIAN" $(_THEOS_RSYNC_EXCLUDE_COMMANDLINE) || true$(ECHO_END)
 endif # _THEOS_HAS_STAGING_LAYOUT
 
-ifeq ($(firstword $(subst ., ,$(_THEOS_TARGET_SWIFT_VERSION))),4)
-_THEOS_DEB_LIBSWIFT_DEPENDS := com.modmyi.libswift4 (>= $(_THEOS_TARGET_SWIFT_VERSION))
+_TARGET_SWIFT_VERSION_GE_5_0 = $(call __simplify,_TARGET_SWIFT_VERSION_GE_5_0,$(shell $(THEOS_BIN_PATH)/vercmp.pl $(_THEOS_TARGET_SWIFT_VERSION) ge 5.0))
+
+ifeq ($(_TARGET_SWIFT_VERSION_GE_5_0),)
+_THEOS_DEB_LIBSWIFT_PACKAGE := com.modmyi.libswift4
+_THEOS_DEB_LIBSWIFT_PACKAGE_VERSION := $(_THEOS_TARGET_SWIFT_VERSION)
 else
-_THEOS_DEB_LIBSWIFT_DEPENDS := org.swift.libswift (>= $(_THEOS_TARGET_SWIFT_VERSION))
+_THEOS_DEB_LIBSWIFT_PACKAGE := org.swift.libswift
+# Note: This only needs to be changed if a newer package is released.
+# See how _THEOS_TARGET_DEFAULT_OS_DEPLOYMENT_VERSION is set for more info.
+_THEOS_DEB_LIBSWIFT_PACKAGE_VERSION := 5.0
 endif
 
+_THEOS_DEB_LIBSWIFT_DEPENDS := $(_THEOS_DEB_LIBSWIFT_PACKAGE) (>= $(_THEOS_DEB_LIBSWIFT_PACKAGE_VERSION))
+
 $(_THEOS_ESCAPED_STAGING_DIR)/DEBIAN/control: $(_THEOS_ESCAPED_STAGING_DIR)/DEBIAN
-	$(ECHO_NOTHING)sed -e 's/\$${LIBSWIFT}/$(_THEOS_DEB_LIBSWIFT_DEPENDS)/g; s/\$${LIBSWIFT_VERSION}/$(_THEOS_TARGET_SWIFT_VERSION)/g; /^[Vv]ersion:/d; /^$$/d; $$a\' "$(_THEOS_DEB_PACKAGE_CONTROL_PATH)" > "$@"$(ECHO_END)
+	$(ECHO_NOTHING)sed -e 's/\$${LIBSWIFT}/$(_THEOS_DEB_LIBSWIFT_DEPENDS)/g; s/\$${LIBSWIFT_VERSION}/$(_THEOS_DEB_LIBSWIFT_PACKAGE_VERSION)/g; /^[Vv]ersion:/d; /^$$/d; $$a\' "$(_THEOS_DEB_PACKAGE_CONTROL_PATH)" > "$@"$(ECHO_END)
 	$(ECHO_NOTHING)echo "Version: $(_THEOS_INTERNAL_PACKAGE_VERSION)" >> "$@"$(ECHO_END)
 	$(ECHO_NOTHING)echo "Installed-Size: $(shell $(_THEOS_PLATFORM_DU) $(_THEOS_PLATFORM_DU_EXCLUDE) DEBIAN -ks "$(THEOS_STAGING_DIR)" | cut -f 1)" >> "$@"$(ECHO_END)
 
@@ -48,22 +56,15 @@ before-package:: $(_THEOS_ESCAPED_STAGING_DIR)/DEBIAN/control
 
 _THEOS_DEB_PACKAGE_FILENAME = $(THEOS_PACKAGE_DIR)/$(THEOS_PACKAGE_NAME)_$(_THEOS_INTERNAL_PACKAGE_VERSION)_$(THEOS_PACKAGE_ARCH).deb
 
-ifeq ($(_THEOS_IS_WSL),$(_THEOS_TRUE))
-internal-package::
-	cp -ar "$(THEOS_STAGING_DIR)" "$(_THEOS_TMP_FOR_WSL)"
-	chmod -R 0755 "$(_THEOS_TMP_FOR_WSL)/$(THEOS_STAGING_DIR_NAME)"
-	$(ECHO_NOTHING)COPYFILE_DISABLE=1 $(FAKEROOT) -r $(_THEOS_PLATFORM_DPKG_DEB) -Z$(_THEOS_PLATFORM_DPKG_DEB_COMPRESSION) -z$(THEOS_PLATFORM_DEB_COMPRESSION_LEVEL) -b "$(_THEOS_TMP_FOR_WSL)/$(THEOS_STAGING_DIR_NAME)" "$(_THEOS_DEB_PACKAGE_FILENAME)"$(ECHO_END)
-else
 internal-package::
 	$(ECHO_NOTHING)COPYFILE_DISABLE=1 $(FAKEROOT) -r $(_THEOS_PLATFORM_DPKG_DEB) -Z$(_THEOS_PLATFORM_DPKG_DEB_COMPRESSION) -z$(THEOS_PLATFORM_DEB_COMPRESSION_LEVEL) -b "$(THEOS_STAGING_DIR)" "$(_THEOS_DEB_PACKAGE_FILENAME)"$(ECHO_END)
-endif
 
 # This variable is used in package.mk
 after-package:: __THEOS_LAST_PACKAGE_FILENAME = $(_THEOS_DEB_PACKAGE_FILENAME)
 
 else # _THEOS_DEB_CAN_PACKAGE == 0
 internal-package::
-	@$(PRINT_FORMAT_ERROR) "$(MAKE) package requires you to have a layout/ directory in the project root, containing the basic package structure, or a control file in the project root describing the package." >&2; exit 1
+	$(ERROR_BEGIN)"$(MAKE) package requires you to have a layout/ directory in the project root, containing the basic package structure, or a control file in the project root describing the package."$(ERROR_END)
 
 endif # _THEOS_DEB_CAN_PACKAGE
 endif # _THEOS_PACKAGE_FORMAT_LOADED

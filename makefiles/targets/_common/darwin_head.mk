@@ -22,7 +22,7 @@ endif
 _THEOS_TARGET_DEFAULT_PACKAGE_FORMAT ?= deb
 
 ifeq ($(_THEOS_TARGET_PLATFORM_IS_SIMULATOR),$(_THEOS_TRUE))
-	_THEOS_TARGET_DEFAULT_USE_SUBSTRATE := $(_THEOS_FALSE)
+	_THEOS_TARGET_LOGOS_DEFAULT_GENERATOR := internal
 
 	TARGET_CODESIGN ?= codesign
 	TARGET_CODESIGN_FLAGS ?= --sign 'iPhone Developer'
@@ -55,7 +55,7 @@ ifneq ($(PREFIX),)
 	__invocation = $(PREFIX)$(1)
 else ifeq ($(call __executable,xcrun),$(_THEOS_TRUE))
 	# macOS
-	__invocation = $(shell xcrun -sdk $(_THEOS_TARGET_PLATFORM_NAME) -f $(1))
+	__invocation = $(shell xcrun -sdk $(_THEOS_TARGET_PLATFORM_NAME) -f $(1) 2>/dev/null)
 else
 	# iOS
 	__invocation = $(1)
@@ -75,8 +75,8 @@ TARGET_STRIP_FLAGS ?= -x
 ifeq ($(TARGET_DSYMUTIL),)
 ifeq ($(call __executable,$(call __invocation,llvm-dsymutil)),$(_THEOS_TRUE))
 	TARGET_DSYMUTIL = $(call __invocation,llvm-dsymutil)
-else ifeq ($(call __executable,dsymutil),$(_THEOS_TRUE))
-	TARGET_DSYMUTIL = dsymutil
+else ifeq ($(call __executable,$(call __invocation,dsymutil)),$(_THEOS_TRUE))
+	TARGET_DSYMUTIL = $(call __invocation,dsymutil)
 endif
 endif
 
@@ -95,9 +95,9 @@ endif
 ifeq ($(words $(_UNSORTED_SDKS)),0)
 before-all::
 ifeq ($(_XCODE_SDK_DIR),)
-	@$(PRINT_FORMAT_ERROR) "You do not have any SDKs in $(THEOS_SDKS_PATH)." >&2; exit 1
+	$(ERROR_BEGIN)"You do not have any SDKs in $(THEOS_SDKS_PATH)."$(ERROR_END)
 else
-	@$(PRINT_FORMAT_ERROR) "You do not have any SDKs in $(_XCODE_SDK_DIR) or $(THEOS_SDKS_PATH)." >&2; exit 1
+	$(ERROR_BEGIN)"You do not have any SDKs in $(_XCODE_SDK_DIR) or $(THEOS_SDKS_PATH)."$(ERROR_END)
 endif
 endif
 
